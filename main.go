@@ -57,40 +57,9 @@ var (
 	maxerrors = flag.Uint64("maxerrors", 20, "Maximum number of errors to get before killing the program.")
 )
 
-func init() {
-	flag.Parse()
-
-	if *base == "" {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	// add schema
-	if !strings.Contains(*base, "://") {
-		*base = "http://" + *base
-	}
-
-	// add path
-	if (*base)[len(*base)-1] != '/' {
-		*base += "/"
-	}
-
-	// seed RNG
-	rand.Seed(time.Now().Unix())
-
-	// if interrupted, print statistics and exit
-	signals := make(chan os.Signal, 2)
-	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-signals
-		r.Println("\nINTERRUPTING ...")
-		printStats()
-		os.Exit(0)
-	}()
-
-}
-
 func main() {
+	setup()
+
 	results := make(chan Result) // response consumer will listen on this channel
 	urls := make(chan string)    // URLs will be pushed here
 	wg := sync.WaitGroup{}       // Done condition
@@ -126,6 +95,40 @@ func main() {
 	g.Println("\nDONE")
 
 	printStats()
+}
+
+// Do some initialization.
+// NOTE: We can't call this in the 'init' function otherwise
+// flags are gonna be mandatory for unit test modules.
+func setup() {
+	flag.Parse()
+	if *base == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	// add schema
+	if !strings.Contains(*base, "://") {
+		*base = "http://" + *base
+	}
+
+	// add path
+	if (*base)[len(*base)-1] != '/' {
+		*base += "/"
+	}
+
+	// seed RNG
+	rand.Seed(time.Now().Unix())
+
+	// if interrupted, print statistics and exit
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-signals
+		r.Println("\nINTERRUPTING ...")
+		printStats()
+		os.Exit(0)
+	}()
 }
 
 // Print some stats
