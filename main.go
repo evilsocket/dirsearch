@@ -104,6 +104,8 @@ var (
 		"Mozilla/4.0 (compatible; MSIE 6.0b; Windows NT 5.1)",
 	}
 
+    nuas = len(uas)
+
 	g = color.New(color.FgGreen)
 	y = color.New(color.FgYellow)
 	r = color.New(color.FgRed)
@@ -217,7 +219,7 @@ func urlConsumer(in <-chan string, out chan<- Result) {
 
 		// Create HEAD request with random user agent.
 		req, _ := http.NewRequest("HEAD", url, nil)
-		req.Header.Set("User-Agent", uas[rand.Intn(len(uas))])
+		req.Header.Set("User-Agent", uas[rand.Intn(nuas)])
 
 		resp, err := client.Do(req)
 		switch err {
