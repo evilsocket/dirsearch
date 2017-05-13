@@ -3,9 +3,11 @@
 This software is a Go implementation of the original [dirsearch tool](https://github.com/maurosoria/dirsearch) written by `Mauro Soria`.
 DirSearch is the very first tool I write in Go, mostly to play and experiment with Go's concurrency model, channels, and so forth :)
 
+[![baby-gopher](https://raw.githubusercontent.com/drnic/babygopher-site/gh-pages/images/babygopher-badge.png)](http://www.babygopher.org)
+
 ## Purpose
 
-DirSearch takes an input URL ( `-url` parameter ) and a wordlist ( `-wordlist` parameter ), will then perform concurrent `HEAD` requests
+DirSearch takes an input URL ( `-url` parameter ) and a wordlist ( `-wordlist` parameter ), it will then perform concurrent `HEAD` requests
 using the lines of the wordlist as paths and files.
 
     Usage of dirsearch:
@@ -26,4 +28,3 @@ using the lines of the wordlist as paths and files.
 
 This project is copyleft of [Simone Margaritelli](http://www.evilsocket.net/) and released under the GPL 3 license.
 
-[![baby-gopher](https://raw.githubusercontent.com/drnic/babygopher-site/gh-pages/images/babygopher-badge.png)](http://www.babygopher.org)
