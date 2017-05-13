@@ -104,7 +104,7 @@ var (
 		"Mozilla/4.0 (compatible; MSIE 6.0b; Windows NT 5.1)",
 	}
 
-    nuas = len(uas)
+	nuas = len(uas)
 
 	g = color.New(color.FgGreen)
 	y = color.New(color.FgYellow)
