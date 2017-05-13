@@ -240,6 +240,8 @@ func urlConsumer(in <-chan string, out chan<- Result) {
 // Consume responses from a channel and print results.
 func respConsumer(ch <-chan Result, wg *sync.WaitGroup) {
 	for result := range ch {
+		defer wg.Done()
+
 		rps := fmt.Sprintf(" - ~%d r/s", int(float64(stats.requests)/time.Now().Sub(stats.start).Seconds()))
 		now := time.Now().Format("15:04:05") + rps
 		switch {
@@ -259,7 +261,6 @@ func respConsumer(ch <-chan Result, wg *sync.WaitGroup) {
 		case !*only200 && result.status >= 500 && result.status < 600:
 			r.Printf("[%s] [%d] %s\n", now, result.status, result.url)
 		}
-		wg.Done()
 
 		if stats.errors > *maxerrors {
 			r.Printf("\nExceeded %d errors, quitting ...\n", *maxerrors)
