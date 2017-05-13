@@ -21,6 +21,8 @@ import (
     "github.com/fatih/color"
 )
 
+// This structure will keep some statistics
+// glued together.
 type Stats struct {
     start time.Time
     stop time.Time
@@ -30,6 +32,8 @@ type Stats struct {
     oks uint64
 }
 
+// Represents the resul of each HEAD request 
+// to a given URL. 
 type Result struct {
     url string
     status int
