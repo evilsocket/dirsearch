@@ -8,7 +8,9 @@ DirSearch is the very first tool I write in Go, mostly to play and experiment wi
 ## Purpose
 
 DirSearch takes an input URL ( `-url` parameter ) and a wordlist ( `-wordlist` parameter ), it will then perform concurrent `HEAD` requests
-using the lines of the wordlist as paths and files.
+using the lines of the wordlist as paths and files eventually bruteforcing folders and files on a web server.
+
+It supports a custom file extension ( `-ext`, default to `php` ) and other optional arguments:
 
     Usage of dirsearch:
       -200only
