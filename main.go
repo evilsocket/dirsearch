@@ -116,9 +116,9 @@ var (
 	base      = flag.String("url", "", "Base URL to start enumeration from.")
 	ext       = flag.String("ext", "php", "File extension.")
 	wordlist  = flag.String("wordlist", "dict.txt", "Wordlist file to use for enumeration.")
-	consumers = flag.Int("consumers", 8, "Number of concurrent consumers.")
+	consumers = flag.Uint("consumers", 8, "Number of concurrent consumers.")
 	only200   = flag.Bool("200only", false, "If enabled, will only display responses with 200 status code.")
-	maxerrors = flag.Int("maxerrors", 20, "Maximum number of errors to get before killing the program.")
+	maxerrors = flag.Uint64("maxerrors", 20, "Maximum number of errors to get before killing the program.")
 )
 
 func init() {
@@ -162,7 +162,7 @@ func main() {
 	fmt.Printf("Scanning %s with %d consumers ...\n\n", *base, *consumers)
 
 	// start a fixed amount of consumers for URLs
-	for i := 0; i < *consumers; i++ {
+	for i := uint(0); i < *consumers; i++ {
 		go urlConsumer(urls, results)
 	}
 
@@ -261,7 +261,7 @@ func respConsumer(ch <-chan Result, wg *sync.WaitGroup) {
 		}
 		wg.Done()
 
-		if stats.errors > uint64(*maxerrors) {
+		if stats.errors > *maxerrors {
 			r.Printf("\nExceeded %d errors, quitting ...\n", *maxerrors)
 			os.Exit(1)
 		}
