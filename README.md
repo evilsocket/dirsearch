@@ -3,7 +3,7 @@
 This software is a Go implementation of the original [dirsearch tool](https://github.com/maurosoria/dirsearch) written by `Mauro Soria`.
 DirSearch is the very first tool I write in Go, mostly to play and experiment with Go's concurrency model, channels, and so forth :)
 
-[![baby-gopher](https://raw.githubusercontent.com/drnic/babygopher-site/gh-pages/images/babygopher-badge.png)](http://www.babygopher.org)
+[![baby-gopher](https://raw.githubusercontent.com/drnic/babygopher-site/gh-pages/images/babygopher-badge.png)](http://www.babygopher.org) [![Go Report Card](https://goreportcard.com/badge/github.com/evilsocket/dirsearch)](https://goreportcard.com/report/github.com/evilsocket/dirsearch)
 
 ## Purpose
 
