@@ -68,6 +68,7 @@ var (
 	nuas = len(uas)
 )
 
+// GetRandomUserAgent returns a random User-Agent string.
 func GetRandomUserAgent() string {
 	return uas[rand.Intn(nuas)]
 }

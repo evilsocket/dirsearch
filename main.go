@@ -1,8 +1,6 @@
-/*
- * This software is a Go implementation of dirsearch by Mauro Soria
- * (maurosoria at gmail dot com) written by Simone Margaritelli
- * (evilsocket at gmail dot com).
- */
+// This software is a Go implementation of dirsearch by Mauro Soria
+// (maurosoria at gmail dot com) written by Simone Margaritelli
+// (evilsocket at gmail dot com).
 package main
 
 import (
@@ -21,7 +19,7 @@ import (
 	"time"
 )
 
-// This structure will keep some statistics
+// Stats will keep some statistics
 // glued together.
 type Stats struct {
 	start    time.Time
@@ -32,7 +30,7 @@ type Stats struct {
 	oks      uint64
 }
 
-// Represents the resul of each HEAD request
+// Result represents the resul of each HEAD request
 // to a given URL.
 type Result struct {
 	url      string
@@ -77,7 +75,7 @@ func main() {
 	stats.start = time.Now()
 
 	// read wordlist line by line
-	err, lines := lineReader(*wordlist)
+	lines, err := lineReader(*wordlist)
 	if err != nil {
 		r.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
@@ -211,10 +209,10 @@ func respConsumer(ch <-chan Result, wg *sync.WaitGroup) {
 // lineReader will accept the name of a file as argument
 // and will return a channel from which lines can be read
 // one at a time.
-func lineReader(filename string) (error, chan string) {
+func lineReader(filename string) (chan string, error) {
 	fp, err := os.Open(filename)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	out := make(chan string)
@@ -230,5 +228,5 @@ func lineReader(filename string) (error, chan string) {
 		}
 	}()
 
-	return nil, out
+	return out, nil
 }
