@@ -1,3 +1,5 @@
 main
-dirsearch
 *.sw*
+vendor/
+build/
+!.gitkeep

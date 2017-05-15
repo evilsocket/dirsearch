@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+	"github.com/evilsocket/dirsearch"
 )
 
 // Stats will keep some statistics
@@ -156,7 +157,7 @@ func urlConsumer(in <-chan string, out chan<- Result) {
 
 		// Create HEAD request with random user agent.
 		req, _ := http.NewRequest("HEAD", url, nil)
-		req.Header.Set("User-Agent", GetRandomUserAgent())
+		req.Header.Set("User-Agent", dirsearch.GetRandomUserAgent())
 
 		resp, err := client.Do(req)
 		switch err {
