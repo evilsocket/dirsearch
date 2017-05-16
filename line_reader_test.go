@@ -30,7 +30,7 @@ func TestLineReader(t *testing.T) {
 	setup()
 	defer teardown()
 
-	lines, err := dirsearch.LineReader(test_filename)
+	lines, err := dirsearch.LineReader(test_filename, 0)
 	if err != nil {
 		t.Errorf("LineReader should not fail with error: %v", err)
 	}

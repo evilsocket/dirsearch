@@ -40,6 +40,9 @@ type Result struct {
 }
 
 var (
+    histName string = ".dirsearch.hist"
+    noff int64
+
 	g = color.New(color.FgGreen)
 	y = color.New(color.FgYellow)
 	r = color.New(color.FgRed)
@@ -75,7 +78,7 @@ func main() {
 	stats.start = time.Now()
 
 	// read wordlist line by line
-	lines, err := dirsearch.LineReader(*wordlist)
+	lines, err := dirsearch.LineReader(*wordlist, noff)
 	if err != nil {
 		r.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
@@ -85,6 +88,7 @@ func main() {
 		// if present, replace '%EXT%' token with extension
 		// and push the URL to the channel
 		urls <- strings.Replace(*base+line, "%EXT%", *ext, -1)
+        noff++
 	}
 
 	// wait for everything to be completed
@@ -92,6 +96,10 @@ func main() {
 
 	g.Println("\nDONE")
 
+    // if DONE then remove history file
+    if _, err := os.Stat(histName); !os.IsNotExist(err) {
+        os.Remove(histName)
+    }
 	printStats()
 }
 
@@ -99,7 +107,22 @@ func main() {
 // NOTE: We can't call this in the 'init' function otherwise
 // flags are gonna be mandatory for unit test modules.
 func setup() {
-	flag.Parse()
+    // check if history file exists
+    _, err := os.Stat(histName)
+    if len(os.Args) > 1 || os.IsNotExist(err) {
+        // everything normal then and parse parameters
+	    flag.Parse()
+    } else {
+        fmt.Println("Resuming from last session.")
+        hist, err := os.Open(histName)
+        if err != nil {
+            r.Fprintf(os.Stderr, "ERROR: error opening %s", histName)
+            os.Exit(2);
+        }
+
+        fmt.Fscanf(hist, "%s %s %d %d %d %t %s", base, wordlist, &noff, consumers, maxerrors, only200, ext)
+        hist.Close()
+    }
 
 	if err := dirsearch.NormalizeURL(base); err != nil {
 		fmt.Println(err)
@@ -117,8 +140,25 @@ func setup() {
 		<-signals
 		r.Println("\nINTERRUPTING ...")
 		printStats()
+        saveHist(noff);
 		os.Exit(0)
 	}()
+}
+
+// Save history file
+func saveHist(offset int64) (err error) {
+    // format: URL|wordlist|offset|consumers|maxerrors|200only|ext
+    format := "%s %s %d %d %d %t %s"
+    save, err := os.Create(histName)
+    if err != nil {
+        return err
+    }
+    defer save.Close()
+
+    data := fmt.Sprintf(format, *base, *wordlist, offset, *consumers, *maxerrors, *only200, *ext)
+    save.WriteString(data)
+
+    return nil
 }
 
 // Print some stats
