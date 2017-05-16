@@ -14,17 +14,17 @@ func LineReader(filename string, noff int64) (chan string, error) {
 		return nil, err
 	}
 
-    // if offset defined then start from there
-    if noff > 0 {
-        // and go to the start of the line
-        b := make([]byte, 1)
-        for b[0] != '\n' {
-            noff--
-            fp.Seek(noff, os.SEEK_SET)
-            fp.Read(b)
-        }
-        noff++
-    }
+	// if offset defined then start from there
+	if noff > 0 {
+		// and go to the start of the line
+		b := make([]byte, 1)
+		for b[0] != '\n' {
+			noff--
+			fp.Seek(noff, os.SEEK_SET)
+			fp.Read(b)
+		}
+		noff++
+	}
 
 	out := make(chan string)
 	go func() {
@@ -35,7 +35,7 @@ func LineReader(filename string, noff int64) (chan string, error) {
 		scanner := bufio.NewScanner(fp)
 		scanner.Split(bufio.ScanLines)
 		for scanner.Scan() {
-            noff, _ = fp.Seek(0, os.SEEK_CUR)
+			noff, _ = fp.Seek(0, os.SEEK_CUR)
 			out <- scanner.Text()
 		}
 	}()
