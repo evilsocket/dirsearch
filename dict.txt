@@ -1,6 +1,6 @@
-!.gitignore
-!.htaccess
-!.htpasswd
+.gitignore
+.htaccess
+.htpasswd
 %3f/
 %EXT%
 %ff/
