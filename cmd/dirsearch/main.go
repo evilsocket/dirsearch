@@ -100,19 +100,11 @@ func main() {
 // flags are gonna be mandatory for unit test modules.
 func setup() {
 	flag.Parse()
-	if *base == "" {
+
+	if err := dirsearch.NormalizeURL(base); err != nil {
+		fmt.Println(err)
 		flag.Usage()
 		os.Exit(1)
-	}
-
-	// add schema
-	if !strings.Contains(*base, "://") {
-		*base = "http://" + *base
-	}
-
-	// add path
-	if (*base)[len(*base)-1] != '/' {
-		*base += "/"
 	}
 
 	// seed RNG
