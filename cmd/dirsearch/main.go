@@ -6,6 +6,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/evilsocket/dirsearch"
 	"github.com/fatih/color"
 	"math/rand"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-	"github.com/evilsocket/dirsearch"
 )
 
 // Stats will keep some statistics

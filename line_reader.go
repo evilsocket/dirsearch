@@ -1,8 +1,8 @@
 package dirsearch
 
 import (
-	"os"
 	"bufio"
+	"os"
 )
 
 // LineReader will accept the name of a file as argument

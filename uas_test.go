@@ -1,10 +1,10 @@
 package dirsearch_test
 
 import (
+	"github.com/evilsocket/dirsearch"
 	"math/rand"
 	"testing"
 	"time"
-	"github.com/evilsocket/dirsearch"
 )
 
 func init() {
