@@ -1,9 +1,10 @@
-package main
+package dirsearch_test
 
 import (
 	"math/rand"
 	"testing"
 	"time"
+	"github.com/evilsocket/dirsearch"
 )
 
 func init() {
@@ -12,12 +13,21 @@ func init() {
 }
 
 func TestGetRandomUserAgent(t *testing.T) {
-	prev := ""
-	for i := 0; i < 20; i++ {
-		ua := GetRandomUserAgent()
-		if ua == prev {
-			t.Fatal("GetRandomUserAgent should never return the previous output.")
-		}
-		prev = ua
+	results := make(map[string]bool)
+
+	for i := 0; i < 75; i++ {
+		ua := dirsearch.GetRandomUserAgent()
+		results[ua] = true
+	}
+
+	//I'm a bit against testing randomness as the test result can float, but for such a small project I guess it's ok
+	minimumExpected := 25
+
+	if len(results) < minimumExpected {
+		t.Errorf(
+			"GetRandomUserAgent should have a good entropy level, got %d unique results, %d minimum expected",
+			len(results),
+			minimumExpected,
+		)
 	}
 }
