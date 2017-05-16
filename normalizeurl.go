@@ -2,15 +2,15 @@ package dirsearch
 
 import (
 	"errors"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 // NormalizeURL takes any domain or URL as input and normalizes
 // it adding (if needed) default schema and path.
-func NormalizeURL( base *string ) (err error) {	
+func NormalizeURL(base *string) (err error) {
 	if *base == "" {
-		return errors.New( "URL is empty." )		
+		return errors.New("URL is empty.")
 	}
 
 	// add schema
@@ -19,7 +19,7 @@ func NormalizeURL( base *string ) (err error) {
 	}
 
 	// add path
-	if m, _ := regexp.Match( "^[a-z]+://[^/]+/.*$", []byte(*base) ); m == false {
+	if m, _ := regexp.Match("^[a-z]+://[^/]+/.*$", []byte(*base)); m == false {
 		*base += "/"
 	}
 
