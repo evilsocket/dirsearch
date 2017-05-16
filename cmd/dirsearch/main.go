@@ -4,7 +4,6 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"github.com/fatih/color"
@@ -76,7 +75,7 @@ func main() {
 	stats.start = time.Now()
 
 	// read wordlist line by line
-	lines, err := lineReader(*wordlist)
+	lines, err := dirsearch.LineReader(*wordlist)
 	if err != nil {
 		r.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
@@ -205,29 +204,4 @@ func respConsumer(ch <-chan Result, wg *sync.WaitGroup) {
 
 		wg.Done()
 	}
-}
-
-// lineReader will accept the name of a file as argument
-// and will return a channel from which lines can be read
-// one at a time.
-func lineReader(filename string) (chan string, error) {
-	fp, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(chan string)
-	go func() {
-		defer fp.Close()
-		// we need to close the out channel in order
-		// to signal the end-of-data condition
-		defer close(out)
-		scanner := bufio.NewScanner(fp)
-		scanner.Split(bufio.ScanLines)
-		for scanner.Scan() {
-			out <- scanner.Text()
-		}
-	}()
-
-	return out, nil
 }
