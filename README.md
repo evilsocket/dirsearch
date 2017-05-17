@@ -26,6 +26,14 @@ It supports a custom file extension ( `-ext`, default to `php` ) and other optio
       -wordlist string
             Wordlist file to use for enumeration. (default "dict.txt")
 
+## Compilation
+
+    go get github.com/evilsocket/dirsearch
+    cd dirsearch
+    make get_glide
+    make install_dependencies
+    make build
+
 ## License
 
 This project is copyleft of [Simone Margaritelli](http://www.evilsocket.net/) and released under the GPL 3 license.
