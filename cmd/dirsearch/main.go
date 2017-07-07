@@ -4,6 +4,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/evilsocket/brutemachine"
@@ -13,8 +14,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -29,7 +30,6 @@ type Result struct {
 }
 
 var (
-
 	m *brutemachine.Machine
 
 	errors = uint64(0)
@@ -49,8 +49,13 @@ var (
 
 func DoRequest(page string) interface{} {
 	url := strings.Replace(fmt.Sprintf("%s%s", *base, page), "%EXT%", *ext, -1)
-	// Do not follow redirects.
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	// Do not verify certificates, do not follow redirects.
 	client := &http.Client{
+		Transport: tr,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}}
@@ -74,11 +79,11 @@ func DoRequest(page string) interface{} {
 func OnResult(res interface{}) {
 	result, ok := res.(Result)
 	if !ok {
-		r.Printf( "Error while converting result.\n" )
+		r.Printf("Error while converting result.\n")
 		return
 	}
-	
-	now := time.Now().Format("15:04:05") 	
+
+	now := time.Now().Format("15:04:05")
 	switch {
 	// error not due to 404 response
 	case result.err != nil && result.status != 404:
@@ -106,12 +111,12 @@ func OnResult(res interface{}) {
 func main() {
 	setup()
 
-	m = brutemachine.New( *consumers, *wordlist, DoRequest, OnResult)
-    if err := m.Start(); err != nil {
-        panic(err)
-    }
+	m = brutemachine.New(*consumers, *wordlist, DoRequest, OnResult)
+	if err := m.Start(); err != nil {
+		panic(err)
+	}
 
-    m.Wait()
+	m.Wait()
 
 	g.Println("\nDONE")
 
@@ -155,4 +160,3 @@ func printStats() {
 	fmt.Println("Time     :", m.Stats.Total.Seconds(), "s")
 	fmt.Println("Req/s    :", m.Stats.Eps)
 }
-
