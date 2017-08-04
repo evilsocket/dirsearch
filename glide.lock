@@ -1,8 +1,10 @@
-hash: 4e96e01b14cec1176a44d745ee8be0ca0ad9955483280a7221fdb7d7bd07f2cb
-updated: 2017-05-15T21:01:55.894275443+02:00
+hash: 1423b69b3eb4df9a9065587841f28689aa1596e3416000f7d53168abf25f543e
+updated: 2017-08-04T21:32:59.354098827+04:30
 imports:
+- name: github.com/evilsocket/brutemachine
+  version: 0331ad6a82cee811aa4e7e80f550fc5b9c7a1153
 - name: github.com/fatih/color
-  version: 9131ab34cf20d2f6d83fdc67168a5430d1c7dc23
+  version: 570b54cabe6b8eb0bc2dfce68d964677d63b5260
 - name: github.com/mattn/go-colorable
   version: 5411d3eea5978e6cdc258b30de592b60df6aba96
   repo: https://github.com/mattn/go-colorable
