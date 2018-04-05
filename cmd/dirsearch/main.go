@@ -88,7 +88,7 @@ func DoRequest(page string) interface{} {
 func OnResult(res interface{}) {
 	result, ok := res.(Result)
 	if !ok {
-		r.Printf("Error while converting result.\n")
+		r.Fprintln(os.Stderr, "Error while converting result.")
 		return
 	}
 
@@ -100,7 +100,11 @@ func OnResult(res interface{}) {
 		r.Printf("[%s] [???] %s : %v\n", now, result.url, result.err)
 	// 2xx
 	case result.status >= 200 && result.status < 300:
-		g.Printf("[%s] [%d] [%d] %s\n", now, result.status, result.size, result.url)
+		if *method == "GET" {
+			g.Printf("[%s] [%d] [%d] %s\n", now, result.status, result.size, result.url)
+		} else {
+			g.Printf("[%s] [%d] %s\n", now, result.status, result.url)
+		}
 	// 3xx
 	case !*only200 && result.status >= 300 && result.status < 400:
 		b.Printf("[%s] [%d] %s -> %s\n", now, result.status, result.url, result.location)
@@ -113,7 +117,7 @@ func OnResult(res interface{}) {
 	}
 
 	if errors > *maxerrors {
-		r.Printf("\nExceeded %d errors, quitting ...\n", *maxerrors)
+		r.Fprintln(os.Stderr, "\nExceeded %d errors, quitting ...", *maxerrors)
 		os.Exit(1)
 	}
 }
@@ -128,7 +132,7 @@ func main() {
 
 	m.Wait()
 
-	g.Println("\nDONE")
+	g.Fprintln(os.Stderr, "\nDONE")
 
 	printStats()
 }
@@ -153,7 +157,7 @@ func setup() {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-signals
-		r.Println("\nINTERRUPTING ...")
+		r.Fprintln(os.Stderr, "\nINTERRUPTING ...")
 		printStats()
 		os.Exit(0)
 	}()
@@ -163,10 +167,10 @@ func setup() {
 func printStats() {
 	m.UpdateStats()
 
-	fmt.Println("")
-	fmt.Println("Requests :", m.Stats.Execs)
-	fmt.Println("Errors   :", errors)
-	fmt.Println("Results  :", m.Stats.Results)
-	fmt.Println("Time     :", m.Stats.Total.Seconds(), "s")
-	fmt.Println("Req/s    :", m.Stats.Eps)
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "Requests :", m.Stats.Execs)
+	fmt.Fprintln(os.Stderr, "Errors   :", errors)
+	fmt.Fprintln(os.Stderr, "Results  :", m.Stats.Results)
+	fmt.Fprintln(os.Stderr, "Time     :", m.Stats.Total.Seconds(), "s")
+	fmt.Fprintln(os.Stderr, "Req/s    :", m.Stats.Eps)
 }
