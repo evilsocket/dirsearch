@@ -1,4 +1,4 @@
-package: github.com/evilsocket/dirsearch
+package: github.com/eur0pa/dirsearch-go
 import:
 - package: github.com/fatih/color
   version: ^1.4.1
