@@ -11,6 +11,7 @@ import (
 	"github.com/eur0pa/dirsearch-go"
 	"github.com/evilsocket/brutemachine"
 	"github.com/fatih/color"
+	"github.com/satori/go.uuid"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -48,11 +49,58 @@ var (
 	threads   = flag.Int("threads", 8, "Number of concurrent threads.")
 	only200   = flag.Bool("200only", false, "If enabled, will only display responses with 200 status code.")
 	maxerrors = flag.Uint64("maxerrors", 20, "Maximum number of errors to get before killing the program.")
-	timeout   = flag.Duration("timeout", 5*time.Second, "Timeout before killing the request.")
+	timeout   = flag.Uint("timeout", 5, "Timeout before killing the request.")
+	wildcard  = flag.Bool("wild", false, "Test and skip wildcard responses.")
 	method    = flag.String("method", "GET", "Request method (HEAD / GET)")
 )
 
+func IsWildcard(url string) bool {
+	test := uuid.Must(uuid.NewV4()).String()
+	res, ok := DoRequest(test).(Result)
+
+	if !ok {
+		return false
+	}
+
+	if res.status == 200 {
+		*wildcard = false
+		return true
+	}
+
+	res = DoRequest(test + ".php").(Result)
+	if res.status == 200 {
+		*wildcard = false
+		return true
+	}
+
+	res = DoRequest(test + ".asp").(Result)
+	if res.status == 200 {
+		*wildcard = false
+		return true
+	}
+
+	res = DoRequest(test + ".aspx").(Result)
+	if res.status == 200 {
+		*wildcard = false
+		return true
+	}
+
+	res = DoRequest(test + ".jsp").(Result)
+	if res.status == 200 {
+		*wildcard = false
+		return true
+	}
+
+	*wildcard = false
+	return false
+}
+
 func DoRequest(page string) interface{} {
+	if errors > *maxerrors {
+		r.Fprintf(os.Stderr, "\nExceeded %d errors, quitting ...", *maxerrors)
+		os.Exit(1)
+	}
+
 	url := strings.Replace(fmt.Sprintf("%s%s", *base, page), "%EXT%", *ext, -1)
 
 	// Do not verify certificates, do not follow redirects.
@@ -62,7 +110,7 @@ func DoRequest(page string) interface{} {
 
 	client := &http.Client{
 		Transport: tr,
-		Timeout:   *timeout,
+		Timeout:   time.Duration(*timeout) * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}}
@@ -74,7 +122,7 @@ func DoRequest(page string) interface{} {
 
 	if resp, err := client.Do(req); err == nil {
 		defer resp.Body.Close()
-		if resp.StatusCode == 200 || !*only200 {
+		if resp.StatusCode == 200 || !*only200 || *wildcard == true {
 			content, _ := ioutil.ReadAll(resp.Body)
 			return Result{url, resp.StatusCode, len(content), resp.Header.Get("Location"), nil}
 		}
@@ -87,6 +135,7 @@ func DoRequest(page string) interface{} {
 
 func OnResult(res interface{}) {
 	result, ok := res.(Result)
+
 	if !ok {
 		r.Fprintln(os.Stderr, "Error while converting result.")
 		return
@@ -116,16 +165,21 @@ func OnResult(res interface{}) {
 		r.Printf("[%s] [%d] %s\n", now, result.status, result.url)
 	}
 
-	if errors > *maxerrors {
-		r.Fprintln(os.Stderr, "\nExceeded %d errors, quitting ...", *maxerrors)
-		os.Exit(1)
-	}
 }
 
 func main() {
 	setup()
 
+	// check for wildcard responses, and return if true
+	if *wildcard == true {
+		if IsWildcard(*base) == true {
+			r.Fprintf(os.Stderr, "\nWildcard detected on %s, skipping....\n", *base)
+			os.Exit(0)
+		}
+	}
+
 	m = brutemachine.New(*threads, *wordlist, DoRequest, OnResult)
+
 	if err := m.Start(); err != nil {
 		panic(err)
 	}
@@ -167,7 +221,6 @@ func setup() {
 func printStats() {
 	m.UpdateStats()
 
-	fmt.Fprintln(os.Stderr, "")
 	fmt.Fprintln(os.Stderr, "Requests :", m.Stats.Execs)
 	fmt.Fprintln(os.Stderr, "Errors   :", errors)
 	fmt.Fprintln(os.Stderr, "Results  :", m.Stats.Results)
