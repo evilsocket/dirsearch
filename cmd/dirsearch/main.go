@@ -51,12 +51,11 @@ var (
 		Transport: transport,
 	}
 
-	ext       = flag.String("e", "php", "File extension")
 	exclude   = flag.String("x", "404", "Status codes to exclude")
 	method    = flag.String("m", "GET", "Request method (HEAD / GET)")
 	base      = flag.String("u", "", "URL to enumerate")
 	wordlist  = flag.String("w", "dict.txt", "Wordlist file")
-	maxerrors = flag.Uint64("E", 20, "Max. errors before exiting")
+	maxerrors = flag.Uint64("E", 10, "Max. errors before exiting")
 	timeout   = flag.Uint("T", 10, "Timeout before killing the request")
 	wildcard  = flag.Bool("sw", false, "Skip wildcard responses")
 	only200   = flag.Bool("2", false, "If enabled, will only display responses with 200 status code.")
@@ -82,7 +81,7 @@ func IsWildcard(url string) bool {
 }
 
 func DoRequest(page string) interface{} {
-	url := strings.Replace(fmt.Sprintf("%s%s", *base, page), "%EXT%", *ext, -1)
+	url := fmt.Sprintf("%s%s", *base, page)
 
 	req, _ := http.NewRequest(*method, url, nil)
 
@@ -100,7 +99,7 @@ func DoRequest(page string) interface{} {
 
 	content, _ := ioutil.ReadAll(resp.Body)
 
-	if (!fail_codes[resp.StatusCode] && !*only200) || *wildcard == true {
+	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
 		return Result{url, resp.StatusCode, uint64(len(content)), resp.Header.Get("Location"), nil}
 	}
 
@@ -121,7 +120,7 @@ func OnResult(res interface{}) {
 
 	// error not due to 404 response
 	case result.err != nil && result.status != 404:
-		r.Printf("[%s] %s : %v\n", now, result.url, result.err)
+		r.Fprintf(os.Stderr, "[%s] %s : %v\n", now, result.url, result.err)
 
 	// 2xx
 	case result.status >= 200 && result.status < 300:
