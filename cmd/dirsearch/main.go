@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -43,15 +44,18 @@ var (
 	r = color.New(color.FgRed)
 	b = color.New(color.FgBlue)
 
-	base      = flag.String("url", "", "Base URL to start enumeration from.")
+	fail_codes = make(map[int]bool)
+
 	ext       = flag.String("ext", "php", "File extension.")
+	exclude   = flag.String("exclude", "404", "Status codes to exclude.")
+	method    = flag.String("method", "GET", "Request method (HEAD / GET)")
+	base      = flag.String("url", "", "Base URL to start enumeration from.")
 	wordlist  = flag.String("wordlist", "dict.txt", "Wordlist file to use for enumeration.")
-	threads   = flag.Int("threads", 8, "Number of concurrent threads.")
-	only200   = flag.Bool("200only", false, "If enabled, will only display responses with 200 status code.")
 	maxerrors = flag.Uint64("maxerrors", 20, "Maximum number of errors to get before killing the program.")
 	timeout   = flag.Uint("timeout", 5, "Timeout before killing the request.")
 	wildcard  = flag.Bool("wild", false, "Test and skip wildcard responses.")
-	method    = flag.String("method", "GET", "Request method (HEAD / GET)")
+	only200   = flag.Bool("200only", false, "If enabled, will only display responses with 200 status code.")
+	threads   = flag.Int("threads", 8, "Number of concurrent threads.")
 )
 
 func IsWildcard(url string) bool {
@@ -62,7 +66,7 @@ func IsWildcard(url string) bool {
 		return false
 	}
 
-	if res.status == 200 {
+	if res.status == 200 || fail_codes[res.status] {
 		*wildcard = false
 		return true
 	}
@@ -72,10 +76,10 @@ func IsWildcard(url string) bool {
 }
 
 func DoRequest(page string) interface{} {
-	/*if errors > *maxerrors {
+	if errors > *maxerrors {
 		r.Fprintf(os.Stderr, "\nExceeded %d errors, quitting ...", *maxerrors)
 		os.Exit(1)
-	}*/
+	}
 
 	url := strings.Replace(fmt.Sprintf("%s%s", *base, page), "%EXT%", *ext, -1)
 
@@ -98,8 +102,9 @@ func DoRequest(page string) interface{} {
 
 	if resp, err := client.Do(req); err == nil {
 		defer resp.Body.Close()
-		if resp.StatusCode == 200 || !*only200 || *wildcard == true {
-			content, _ := ioutil.ReadAll(resp.Body)
+		content, _ := ioutil.ReadAll(resp.Body)
+		if (!fail_codes[resp.StatusCode] && !*only200) || *wildcard == true {
+			//if resp.StatusCode == 200 || !*only200 || *wildcard == true {
 			return Result{url, resp.StatusCode, len(content), resp.Header.Get("Location"), nil}
 		}
 	} else {
@@ -132,13 +137,13 @@ func OnResult(res interface{}) {
 		}
 	// 3xx
 	case !*only200 && result.status >= 300 && result.status < 400:
-		b.Printf("[%s] %-3d %s -> %s\n", now, result.status, result.url, result.location)
+		b.Printf("[%s] %-3d %-8d %s -> %s\n", now, result.status, result.size, result.url, result.location)
 	// 4xx
 	case result.status >= 400 && result.status < 500 && result.status != 404:
-		y.Printf("[%s] %-3d %s\n", now, result.status, result.url)
+		y.Printf("[%s] %-3d %-8d %s\n", now, result.status, result.size, result.url)
 	// 5xx
 	case result.status >= 500 && result.status < 600:
-		r.Printf("[%s] %-3d %s\n", now, result.status, result.url)
+		r.Printf("[%s] %-3d %-8d %s\n", now, result.status, result.size, result.url)
 	}
 
 }
@@ -151,6 +156,14 @@ func main() {
 		if IsWildcard(*base) == true {
 			r.Fprintf(os.Stderr, "\nWildcard detected on %s, skipping....\n", *base)
 			os.Exit(0)
+		}
+	}
+
+	// create a list of exclusions
+	if *exclude != "" {
+		for _, x := range strings.Split(*exclude, ",") {
+			y, _ := strconv.Atoi(x)
+			fail_codes[y] = true
 		}
 	}
 
