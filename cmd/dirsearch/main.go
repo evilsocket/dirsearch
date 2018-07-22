@@ -104,7 +104,6 @@ func DoRequest(page string) interface{} {
 		defer resp.Body.Close()
 		content, _ := ioutil.ReadAll(resp.Body)
 		if (!fail_codes[resp.StatusCode] && !*only200) || *wildcard == true {
-			//if resp.StatusCode == 200 || !*only200 || *wildcard == true {
 			return Result{url, resp.StatusCode, len(content), resp.Header.Get("Location"), nil}
 		}
 	} else {
