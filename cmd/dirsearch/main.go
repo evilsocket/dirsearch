@@ -55,7 +55,7 @@ var (
 )
 
 func IsWildcard(url string) bool {
-	test := uuid.Must(uuid.NewV4()).String()
+	test := uuid.Must(uuid.NewV4(), nil).String()
 	res, ok := DoRequest(test).(Result)
 
 	if !ok {
@@ -67,39 +67,15 @@ func IsWildcard(url string) bool {
 		return true
 	}
 
-	res = DoRequest(test + ".php").(Result)
-	if res.status == 200 {
-		*wildcard = false
-		return true
-	}
-
-	res = DoRequest(test + ".asp").(Result)
-	if res.status == 200 {
-		*wildcard = false
-		return true
-	}
-
-	res = DoRequest(test + ".aspx").(Result)
-	if res.status == 200 {
-		*wildcard = false
-		return true
-	}
-
-	res = DoRequest(test + ".jsp").(Result)
-	if res.status == 200 {
-		*wildcard = false
-		return true
-	}
-
 	*wildcard = false
 	return false
 }
 
 func DoRequest(page string) interface{} {
-	if errors > *maxerrors {
+	/*if errors > *maxerrors {
 		r.Fprintf(os.Stderr, "\nExceeded %d errors, quitting ...", *maxerrors)
 		os.Exit(1)
-	}
+	}*/
 
 	url := strings.Replace(fmt.Sprintf("%s%s", *base, page), "%EXT%", *ext, -1)
 
@@ -146,23 +122,23 @@ func OnResult(res interface{}) {
 	switch {
 	// error not due to 404 response
 	case result.err != nil && result.status != 404:
-		r.Printf("[%s] [???] %s : %v\n", now, result.url, result.err)
+		r.Printf("[%s] ........ %s : %v\n", now, result.url, result.err)
 	// 2xx
 	case result.status >= 200 && result.status < 300:
 		if *method == "GET" {
-			g.Printf("[%s] [%d] [%d] %s\n", now, result.status, result.size, result.url)
+			g.Printf("[%s] %-3d %-8d %s\n", now, result.status, result.size, result.url)
 		} else {
-			g.Printf("[%s] [%d] %s\n", now, result.status, result.url)
+			g.Printf("[%s] %-3d %s\n", now, result.status, result.url)
 		}
 	// 3xx
 	case !*only200 && result.status >= 300 && result.status < 400:
-		b.Printf("[%s] [%d] %s -> %s\n", now, result.status, result.url, result.location)
+		b.Printf("[%s] %-3d %s -> %s\n", now, result.status, result.url, result.location)
 	// 4xx
 	case result.status >= 400 && result.status < 500 && result.status != 404:
-		y.Printf("[%s] [%d] %s\n", now, result.status, result.url)
+		y.Printf("[%s] %-3d %s\n", now, result.status, result.url)
 	// 5xx
 	case result.status >= 500 && result.status < 600:
-		r.Printf("[%s] [%d] %s\n", now, result.status, result.url)
+		r.Printf("[%s] %-3d %s\n", now, result.status, result.url)
 	}
 
 }
