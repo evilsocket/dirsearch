@@ -52,18 +52,23 @@ var (
 		Transport: transport,
 	}
 
-	exclude   = flag.String("x", "404", "Status codes to exclude")
-	method    = flag.String("m", "GET", "Request method (HEAD / GET)")
-	base      = flag.String("u", "", "URL to enumerate")
-	wordlist  = flag.String("w", "dict.txt", "Wordlist file")
+	exclude  = flag.String("x", "404", "Status codes to exclude")
+	method   = flag.String("m", "GET", "Request method (HEAD / GET)")
+	base     = flag.String("u", "", "URL to enumerate")
+	wordlist = flag.String("w", "dict.txt", "Wordlist file")
+
 	maxerrors = flag.Uint64("E", 10, "Max. errors before exiting")
 	timeout   = flag.Uint("T", 10, "Timeout before killing the request")
 	threads   = flag.Int("t", 10, "Number of concurrent threads.")
-	wildcard  = flag.Bool("sw", false, "Skip wildcard responses")
-	size_min  = flag.Int("sm", -1, "Skip size min value")
-	size_max  = flag.Int("sM", -1, "Skip size max value")
 	only200   = flag.Bool("2", false, "Only display responses with 200 status code.")
 	follow    = flag.Bool("f", false, "Follow redirects.")
+
+	wildcard = flag.Bool("sw", false, "Skip wildcard responses")
+	size_min = flag.Int("sm", -1, "Skip size min value")
+	size_max = flag.Int("sM", -1, "Skip size max value")
+
+	ext     = flag.String("e", "", "Extension to add to requests (dirsearch style)")
+	ext_all = flag.Bool("ef", false, "Add extension to all requests (dirbuster style)")
 )
 
 // asks for $rand and will return true if 200 or
@@ -89,11 +94,23 @@ func IsWildcard(url string) bool {
 // removed useless single extension support
 func DoRequest(page string) interface{} {
 	// todo: multiple extensions
+	// base url + word
 	url := fmt.Sprintf("%s%s", *base, page)
+
+	// add .ext to every request, or
+	if *ext != "" && *ext_all {
+		url = fmt.Sprintf("%s.%s", url, *ext)
+	}
+
+	// replace .ext where needed
+	if *ext != "" && !*ext_all {
+		url = strings.Replace(url, "%EXT%", *ext, -1)
+	}
 
 	req, _ := http.NewRequest(*method, url, nil)
 	req.Header.Set("User-Agent", dirsearch.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
+
 	// todo: add cookies
 	// todo: add headers
 
@@ -107,12 +124,16 @@ func DoRequest(page string) interface{} {
 		return Result{url, 0, 0, "", err}
 	}
 
-	// we need the body to compute size, as content-length can lie
-	content, _ := ioutil.ReadAll(resp.Body)
-
 	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
-		// only get this once
-		size := len(content)
+		size := 0
+
+		if *method == "GET" {
+			// we need the body to compute size, as content-length can lie
+			content, _ := ioutil.ReadAll(resp.Body)
+			size = len(content)
+		} else {
+			size, _ = strconv.Atoi(resp.Header.Get("content-length"))
+		}
 
 		// skip if size is as requested, or included in a given range
 		if *size_min > -1 {
@@ -146,11 +167,7 @@ func OnResult(res interface{}) {
 		r.Fprintf(os.Stderr, "[%s] %s : %v\n", now, result.url, result.err)
 
 	case result.status >= 200 && result.status < 300:
-		if *method == "GET" {
-			g.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
-		} else {
-			g.Printf("[%s] %-3d %s\n", now, result.status, result.url)
-		}
+		g.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
 
 	case !*only200 && result.status >= 300 && result.status < 400:
 		b.Printf("[%s] %-3d %-9d %s -> %s\n", now, result.status, result.size, result.url, result.location)
