@@ -1,6 +1,7 @@
 // This software is a Go implementation of dirsearch by Mauro Soria
 // (maurosoria at gmail dot com) written by Simone Margaritelli
 // (evilsocket at gmail dot com).
+// further development by @eur0pa
 
 package main
 
@@ -27,7 +28,7 @@ import (
 type Result struct {
 	url      string
 	status   int
-	size     uint64
+	size     int
 	location string
 	err      error
 }
@@ -57,12 +58,14 @@ var (
 	wordlist  = flag.String("w", "dict.txt", "Wordlist file")
 	maxerrors = flag.Uint64("E", 10, "Max. errors before exiting")
 	timeout   = flag.Uint("T", 10, "Timeout before killing the request")
+	threads   = flag.Int("t", 10, "Number of concurrent threads.")
 	wildcard  = flag.Bool("sw", false, "Skip wildcard responses")
 	only200   = flag.Bool("2", false, "If enabled, will only display responses with 200 status code.")
 	follow    = flag.Bool("f", false, "Follow redirects.")
-	threads   = flag.Int("t", 10, "Number of concurrent threads.")
 )
 
+// asks for $rand and will return true if 200 or
+// not included in the fail codes
 func IsWildcard(url string) bool {
 	test := uuid.Must(uuid.NewV4(), nil).String()
 	res, ok := DoRequest(test).(Result)
@@ -80,27 +83,34 @@ func IsWildcard(url string) bool {
 	return false
 }
 
+// handles requests. moved some stuff out for speed
+// removed useless single extension support
 func DoRequest(page string) interface{} {
+	// todo: multiple extensions
 	url := fmt.Sprintf("%s%s", *base, page)
 
 	req, _ := http.NewRequest(*method, url, nil)
-
 	req.Header.Set("User-Agent", dirsearch.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
+	// todo: add cookies
+	// todo: add headers
 
+	// fix: return error if necessary
 	resp, err := httpClient.Do(req)
 	if resp != nil {
 		defer resp.Body.Close()
 	}
 	if err != nil {
 		atomic.AddUint64(&errors, 1)
-		return Result{url, 0, uint64(0), "", err}
+		return Result{url, 0, 0, "", err}
 	}
 
+	// we need the body to compute size, as content-length can lie
 	content, _ := ioutil.ReadAll(resp.Body)
 
 	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
-		return Result{url, resp.StatusCode, uint64(len(content)), resp.Header.Get("Location"), nil}
+		// some tools use uint64(utf8.RuneCountInString(string(body)))
+		return Result{url, resp.StatusCode, len(content), resp.Header.Get("Location"), nil}
 	}
 
 	return nil
@@ -118,11 +128,9 @@ func OnResult(res interface{}) {
 
 	switch {
 
-	// error not due to 404 response
 	case result.err != nil && result.status != 404:
 		r.Fprintf(os.Stderr, "[%s] %s : %v\n", now, result.url, result.err)
 
-	// 2xx
 	case result.status >= 200 && result.status < 300:
 		if *method == "GET" {
 			g.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
@@ -130,15 +138,12 @@ func OnResult(res interface{}) {
 			g.Printf("[%s] %-3d %s\n", now, result.status, result.url)
 		}
 
-	// 3xx
 	case !*only200 && result.status >= 300 && result.status < 400:
 		b.Printf("[%s] %-3d %-9d %s -> %s\n", now, result.status, result.size, result.url, result.location)
 
-	// 4xx
 	case result.status >= 400 && result.status < 500 && result.status != 404:
 		y.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
 
-	// 5xx
 	case result.status >= 500 && result.status < 600:
 		r.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
 	}
