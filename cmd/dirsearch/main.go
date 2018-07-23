@@ -13,7 +13,6 @@ import (
 	"github.com/evilsocket/brutemachine"
 	"github.com/fatih/color"
 	"github.com/satori/go.uuid"
-	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -45,12 +44,13 @@ var (
 	errors     = uint64(0)
 	fail_codes = make(map[int]bool)
 
-	transport = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	tr = &http.Transport{
+		MaxIdleConnsPerHost: 1024,
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 	}
 
-	httpClient = &http.Client{
-		Transport: transport,
+	client = &http.Client{
+		Transport: tr,
 	}
 
 	exclude  = flag.String("x", "", "Status codes to exclude")
@@ -129,7 +129,7 @@ func DoRequest(page string) interface{} {
 		req.Header.Set("X-Remote-Addr", "127.0.0.1")
 	}
 
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 
 	if err != nil {
 		atomic.AddUint64(&errors, 1)
@@ -137,20 +137,18 @@ func DoRequest(page string) interface{} {
 	}
 
 	defer resp.Body.Close()
+	content, _ := ioutil.ReadAll(resp.Body)
 
 	var size int64 = 0
 
-	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
-		// try content-length
-		size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
-
-		// fallback to body if content-length failed
-		if size <= 0 {
-			content, _ := ioutil.ReadAll(resp.Body)
-			size = int64(len(content))
+	if (resp.StatusCode == 200 && *only200) ||
+		(!fail_codes[resp.StatusCode] && !*only200) ||
+		(*wildcard) {
+		// try content-length if HEAD
+		if *method != "GET" {
+			size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
 		} else {
-			// discard body to reuse connections (thanks @FireFart)
-			_, _ = io.Copy(ioutil.Discard, resp.Body)
+			size = int64(len(content))
 		}
 
 		// skip if size is as requested, or included in a given range
@@ -165,9 +163,6 @@ func DoRequest(page string) interface{} {
 
 		return Result{url, resp.StatusCode, size, resp.Header.Get("location"), nil}
 	}
-
-	// discard body to reuse connections (thanks @FireFart)
-	_, _ = io.Copy(ioutil.Discard, resp.Body)
 
 	return nil
 }
@@ -201,7 +196,7 @@ func OnResult(res interface{}) {
 	}
 
 	if errors > *maxerrors {
-		r.Fprintf(os.Stderr, "\nExceeded %d errors, quitting ...", *maxerrors)
+		r.Fprintf(os.Stderr, "\nExceeded %d errors, quitting...", *maxerrors)
 		os.Exit(1)
 	}
 }
@@ -218,11 +213,11 @@ func main() {
 	}
 
 	// set timeout
-	httpClient.Timeout = time.Duration(*timeout) * time.Second
+	client.Timeout = time.Duration(*timeout) * time.Second
 
 	// set redirects policy
 	if !*follow {
-		httpClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
@@ -230,7 +225,7 @@ func main() {
 	// check for wildcard responses, and return if true
 	if *wildcard == true {
 		if IsWildcard(*base) == true {
-			r.Fprintf(os.Stderr, "\nWildcard detected on %s, skipping....\n", *base)
+			r.Fprintf(os.Stderr, "\nWildcard detected on %s, skipping...\n", *base)
 			os.Exit(0)
 		}
 	}
