@@ -53,7 +53,7 @@ var (
 		Transport: transport,
 	}
 
-	exclude  = flag.String("x", "404", "Status codes to exclude")
+	exclude  = flag.String("x", "", "Status codes to exclude")
 	base     = flag.String("u", "", "URL to enumerate")
 	wordlist = flag.String("w", "dict.txt", "Wordlist file")
 	method   = flag.String("M", "GET", "Request method (HEAD / GET)")
