@@ -13,6 +13,7 @@ import (
 	"github.com/evilsocket/brutemachine"
 	"github.com/fatih/color"
 	"github.com/satori/go.uuid"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -28,7 +29,7 @@ import (
 type Result struct {
 	url      string
 	status   int
-	size     int
+	size     int64
 	location string
 	err      error
 }
@@ -53,22 +54,23 @@ var (
 	}
 
 	exclude  = flag.String("x", "404", "Status codes to exclude")
-	method   = flag.String("m", "GET", "Request method (HEAD / GET)")
 	base     = flag.String("u", "", "URL to enumerate")
 	wordlist = flag.String("w", "dict.txt", "Wordlist file")
+	method   = flag.String("M", "GET", "Request method (HEAD / GET)")
+	ext      = flag.String("e", "", "Extension to add to requests (dirsearch style)")
+	cookie   = flag.String("b", "", "Cookies (format: name=value;name=value)")
 
-	maxerrors = flag.Uint64("E", 10, "Max. errors before exiting")
+	maxerrors = flag.Uint64("max-errors", 10, "Max. errors before exiting")
+	size_min  = flag.Int64("sm", -1, "Skip size min value")
+	size_max  = flag.Int64("sM", -1, "Skip size max value")
 	timeout   = flag.Uint("T", 10, "Timeout before killing the request")
 	threads   = flag.Int("t", 10, "Number of concurrent threads.")
-	only200   = flag.Bool("2", false, "Only display responses with 200 status code.")
-	follow    = flag.Bool("f", false, "Follow redirects.")
 
+	only200  = flag.Bool("2", false, "Only display responses with 200 status code.")
+	follow   = flag.Bool("f", false, "Follow redirects.")
 	wildcard = flag.Bool("sw", false, "Skip wildcard responses")
-	size_min = flag.Int("sm", -1, "Skip size min value")
-	size_max = flag.Int("sM", -1, "Skip size max value")
-
-	ext     = flag.String("e", "", "Extension to add to requests (dirsearch style)")
-	ext_all = flag.Bool("ef", false, "Add extension to all requests (dirbuster style)")
+	ext_all  = flag.Bool("ef", false, "Add extension to all requests (dirbuster style)")
+	waf      = flag.Bool("waf", false, "Inject 'WAF bypass' headers")
 )
 
 // asks for $rand and will return true if 200 or
@@ -107,32 +109,48 @@ func DoRequest(page string) interface{} {
 		url = strings.Replace(url, "%EXT%", *ext, -1)
 	}
 
+	// build request
 	req, _ := http.NewRequest(*method, url, nil)
+
 	req.Header.Set("User-Agent", dirsearch.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
 
-	// todo: add cookies
-	// todo: add headers
-
-	// fix: return error if necessary
-	resp, err := httpClient.Do(req)
-	if resp != nil {
-		defer resp.Body.Close()
+	// add cookies
+	if *cookie != "" {
+		req.Header.Set("Cookie", *cookie)
 	}
+
+	// attempt to bypass waf if asked to do so
+	if *waf {
+		req.Header.Set("X-Client-IP", "127.0.0.1")
+		req.Header.Set("X-Forwarded-For", "127.0.0.1")
+		req.Header.Set("X-Originating-IP", "127.0.0.1")
+		req.Header.Set("X-Remote-IP", "127.0.0.1")
+		req.Header.Set("X-Remote-Addr", "127.0.0.1")
+	}
+
+	resp, err := httpClient.Do(req)
+
 	if err != nil {
 		atomic.AddUint64(&errors, 1)
 		return Result{url, 0, 0, "", err}
 	}
 
-	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
-		size := 0
+	defer resp.Body.Close()
 
-		if *method == "GET" {
-			// we need the body to compute size, as content-length can lie
+	var size int64 = 0
+
+	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
+		// try content-length
+		size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
+
+		// fallback to body if content-length failed
+		if size <= 0 {
 			content, _ := ioutil.ReadAll(resp.Body)
-			size = len(content)
+			size = int64(len(content))
 		} else {
-			size, _ = strconv.Atoi(resp.Header.Get("content-length"))
+			// discard body to reuse connections (thanks @FireFart)
+			_, _ = io.Copy(ioutil.Discard, resp.Body)
 		}
 
 		// skip if size is as requested, or included in a given range
@@ -145,8 +163,11 @@ func DoRequest(page string) interface{} {
 			}
 		}
 
-		return Result{url, resp.StatusCode, size, resp.Header.Get("Location"), nil}
+		return Result{url, resp.StatusCode, size, resp.Header.Get("location"), nil}
 	}
+
+	// discard body to reuse connections (thanks @FireFart)
+	_, _ = io.Copy(ioutil.Discard, resp.Body)
 
 	return nil
 }
