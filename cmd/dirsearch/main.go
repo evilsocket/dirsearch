@@ -60,7 +60,9 @@ var (
 	timeout   = flag.Uint("T", 10, "Timeout before killing the request")
 	threads   = flag.Int("t", 10, "Number of concurrent threads.")
 	wildcard  = flag.Bool("sw", false, "Skip wildcard responses")
-	only200   = flag.Bool("2", false, "If enabled, will only display responses with 200 status code.")
+	size_min  = flag.Int("sm", -1, "Skip size min value")
+	size_max  = flag.Int("sM", -1, "Skip size max value")
+	only200   = flag.Bool("2", false, "Only display responses with 200 status code.")
 	follow    = flag.Bool("f", false, "Follow redirects.")
 )
 
@@ -109,8 +111,20 @@ func DoRequest(page string) interface{} {
 	content, _ := ioutil.ReadAll(resp.Body)
 
 	if (resp.StatusCode == 200 && *only200) || (!fail_codes[resp.StatusCode] && !*only200) || (*wildcard) {
-		// some tools use uint64(utf8.RuneCountInString(string(body)))
-		return Result{url, resp.StatusCode, len(content), resp.Header.Get("Location"), nil}
+		// only get this once
+		size := len(content)
+
+		// skip if size is as requested, or included in a given range
+		if *size_min > -1 {
+			if size == *size_min {
+				return nil
+			}
+			if size >= *size_min && size <= *size_max {
+				return nil
+			}
+		}
+
+		return Result{url, resp.StatusCode, size, resp.Header.Get("Location"), nil}
 	}
 
 	return nil
