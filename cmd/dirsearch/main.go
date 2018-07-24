@@ -45,7 +45,7 @@ var (
 	fail_codes = make(map[int]bool)
 
 	tr = &http.Transport{
-		MaxIdleConnsPerHost: 1024,
+		MaxIdleConnsPerHost: *threads,
 		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
 	}
 
@@ -137,6 +137,7 @@ func DoRequest(page string) interface{} {
 	}
 
 	defer resp.Body.Close()
+
 	content, _ := ioutil.ReadAll(resp.Body)
 
 	var size int64 = 0
