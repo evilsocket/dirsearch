@@ -13,6 +13,7 @@ import (
 	"github.com/evilsocket/brutemachine"
 	"github.com/fatih/color"
 	"github.com/satori/go.uuid"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -45,8 +46,7 @@ var (
 	fail_codes = make(map[int]bool)
 
 	tr = &http.Transport{
-		MaxIdleConnsPerHost: *threads,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
 	client = &http.Client{
@@ -110,7 +110,10 @@ func DoRequest(page string) interface{} {
 	}
 
 	// build request
-	req, _ := http.NewRequest(*method, url, nil)
+	req, err := http.NewRequest(*method, url, nil)
+	if err != nil {
+		return nil
+	}
 
 	req.Header.Set("User-Agent", dirsearch.GetRandomUserAgent())
 	req.Header.Set("Accept", "*/*")
@@ -130,7 +133,6 @@ func DoRequest(page string) interface{} {
 	}
 
 	resp, err := client.Do(req)
-
 	if err != nil {
 		atomic.AddUint64(&errors, 1)
 		return Result{url, 0, 0, "", err}
@@ -138,21 +140,23 @@ func DoRequest(page string) interface{} {
 
 	defer resp.Body.Close()
 
-	// read all the things or golang won't reuse the connection
-	content, _ := ioutil.ReadAll(resp.Body)
-
 	size := int64(0)
 
 	// useful comment
-	if (resp.StatusCode == 200 && *only200) ||
+	if (resp.StatusCode == http.StatusOK && *only200) ||
 		(!fail_codes[resp.StatusCode] && !*only200) ||
 		(*wildcard) {
+		// try content-length first
+		size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
 
-		// try content-length if HEAD
-		if *method != "GET" {
-			size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
+		// fallback to body length
+		if size <= 0 {
+			content, err := ioutil.ReadAll(resp.Body)
+			if err == nil {
+				size = int64(len(content))
+			}
 		} else {
-			size = int64(len(content))
+			_, _ = io.Copy(ioutil.Discard, resp.Body)
 		}
 
 		// skip if size is as requested, or included in a given range
@@ -167,6 +171,8 @@ func DoRequest(page string) interface{} {
 
 		return Result{url, resp.StatusCode, size, resp.Header.Get("location"), nil}
 	}
+
+	_, _ = io.Copy(ioutil.Discard, resp.Body)
 
 	return nil
 }
