@@ -60,13 +60,13 @@ var (
 	ext      = flag.String("e", "", "Extension to add to requests (dirsearch style)")
 	cookie   = flag.String("b", "", "Cookies (format: name=value;name=value)")
 
-	maxerrors = flag.Uint64("max-errors", 10, "Max. errors before exiting")
+	maxerrors = flag.Uint64("E", 10, "Max. errors before exiting")
 	size_min  = flag.Int64("sm", -1, "Skip size min value")
 	size_max  = flag.Int64("sM", -1, "Skip size max value")
-	timeout   = flag.Uint("T", 10, "Timeout before killing the request")
 	threads   = flag.Int("t", 10, "Number of concurrent threads.")
+	timeout   = flag.Int("T", 10, "Timeout before killing the request")
 
-	only200  = flag.Bool("2", false, "Only display responses with 200 status code.")
+	only200  = flag.Bool("2", false, "Only display responses with 200 status code")
 	follow   = flag.Bool("f", false, "Follow redirects.")
 	wildcard = flag.Bool("sw", false, "Skip wildcard responses")
 	ext_all  = flag.Bool("ef", false, "Add extension to all requests (dirbuster style)")
@@ -123,10 +123,10 @@ func DoRequest(page string) interface{} {
 	// attempt to bypass waf if asked to do so
 	if *waf {
 		req.Header.Set("X-Client-IP", "127.0.0.1")
-		req.Header.Set("X-Forwarded-For", "127.0.0.1")
-		req.Header.Set("X-Originating-IP", "127.0.0.1")
 		req.Header.Set("X-Remote-IP", "127.0.0.1")
 		req.Header.Set("X-Remote-Addr", "127.0.0.1")
+		req.Header.Set("X-Forwarded-For", "127.0.0.1")
+		req.Header.Set("X-Originating-IP", "127.0.0.1")
 	}
 
 	resp, err := client.Do(req)
@@ -138,13 +138,16 @@ func DoRequest(page string) interface{} {
 
 	defer resp.Body.Close()
 
+	// read all the things or golang won't reuse the connection
 	content, _ := ioutil.ReadAll(resp.Body)
 
-	var size int64 = 0
+	size := int64(0)
 
+	// useful comment
 	if (resp.StatusCode == 200 && *only200) ||
 		(!fail_codes[resp.StatusCode] && !*only200) ||
 		(*wildcard) {
+
 		// try content-length if HEAD
 		if *method != "GET" {
 			size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
@@ -179,17 +182,19 @@ func OnResult(res interface{}) {
 	now := time.Now().Format("15:04:05")
 
 	switch {
+	case result.status == 404:
+		return
 
-	case result.err != nil && result.status != 404:
+	case result.err != nil:
 		r.Fprintf(os.Stderr, "[%s] %s : %v\n", now, result.url, result.err)
 
 	case result.status >= 200 && result.status < 300:
 		g.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
 
-	case !*only200 && result.status >= 300 && result.status < 400:
+	case result.status >= 300 && result.status < 400:
 		b.Printf("[%s] %-3d %-9d %s -> %s\n", now, result.status, result.size, result.url, result.location)
 
-	case result.status >= 400 && result.status < 500 && result.status != 404:
+	case result.status >= 400 && result.status < 500:
 		y.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
 
 	case result.status >= 500 && result.status < 600:
