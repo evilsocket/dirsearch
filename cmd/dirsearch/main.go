@@ -43,22 +43,27 @@ var (
 	b = color.New(color.FgBlue)
 
 	errors     = uint64(0)
-	fail_codes = make(map[int]bool)
+	skip_codes = make(map[int]bool)
+	skip_sizes = make(map[int64]bool)
 
 	tr = &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	client = &http.Client{
 		Transport: tr,
+		Timeout:   time.Duration(*timeout) * time.Second,
 	}
 
-	exclude  = flag.String("x", "", "Status codes to exclude")
-	base     = flag.String("u", "", "URL to enumerate")
-	wordlist = flag.String("w", "dict.txt", "Wordlist file")
-	method   = flag.String("M", "GET", "Request method (HEAD / GET)")
-	ext      = flag.String("e", "", "Extension to add to requests (dirsearch style)")
-	cookie   = flag.String("b", "", "Cookies (format: name=value;name=value)")
+	base      = flag.String("u", "", "URL to enumerate")
+	wordlist  = flag.String("w", "dict.txt", "Wordlist file")
+	method    = flag.String("M", "GET", "Request method (HEAD / GET)")
+	ext       = flag.String("e", "", "Extension to add to requests (dirsearch style)")
+	cookie    = flag.String("c", "", "Cookies (format: name=value;name=value)")
+	skip_code = flag.String("x", "", "Status codes to exclude")
+	skip_size = flag.String("s", "", "Skip sizes (comma sep)")
 
 	maxerrors = flag.Uint64("E", 10, "Max. errors before exiting")
 	size_min  = flag.Int64("sm", -1, "Skip size min value")
@@ -77,19 +82,59 @@ var (
 // not included in the fail codes
 func IsWildcard(url string) bool {
 	test := uuid.Must(uuid.NewV4(), nil).String()
-	res, ok := DoRequest(test).(Result)
+	res, err := client.Get(*base + test)
 
-	if !ok {
+	if err != nil {
 		return false
 	}
 
-	if res.status == 200 || !fail_codes[res.status] {
+	defer res.Body.Close()
+	_, _ = io.Copy(ioutil.Discard, res.Body)
+
+	if res.StatusCode == http.StatusOK || !skip_codes[res.StatusCode] {
 		*wildcard = false
 		return true
 	}
 
 	*wildcard = false
 	return false
+}
+
+// check if host is alive before going all the trouble
+func IsAlive(url string) bool {
+	res, err := client.Get(*base)
+
+	if err != nil {
+		return false
+	}
+
+	defer res.Body.Close()
+	_, _ = io.Copy(ioutil.Discard, res.Body)
+
+	return true
+}
+
+// make a bogus request to calibrate the 404 engine
+func Check404(url string) (int, int64, error) {
+	test := uuid.Must(uuid.NewV4(), nil).String()
+	res, err := client.Get(*base + test)
+
+	if err == nil {
+		defer res.Body.Close()
+
+		size, _ := strconv.ParseInt(res.Header.Get("content-length"), 10, 64)
+
+		if size <= 0 {
+			content, err := ioutil.ReadAll(res.Body)
+			if err == nil {
+				size = int64(len(content))
+			}
+		}
+
+		return res.StatusCode, size, nil
+	}
+
+	return 0, 0, err
 }
 
 // handles requests. moved some stuff out for speed
@@ -132,6 +177,9 @@ func DoRequest(page string) interface{} {
 		req.Header.Set("X-Originating-IP", "127.0.0.1")
 	}
 
+	// needed to avoid overloading file descriptors
+	//req.Close = true
+
 	resp, err := client.Do(req)
 	if err != nil {
 		atomic.AddUint64(&errors, 1)
@@ -144,7 +192,7 @@ func DoRequest(page string) interface{} {
 
 	// useful comment
 	if (resp.StatusCode == http.StatusOK && *only200) ||
-		(!fail_codes[resp.StatusCode] && !*only200) ||
+		(!skip_codes[resp.StatusCode] && !*only200) ||
 		(*wildcard) {
 		// try content-length first
 		size, _ = strconv.ParseInt(resp.Header.Get("content-length"), 10, 64)
@@ -160,13 +208,12 @@ func DoRequest(page string) interface{} {
 		}
 
 		// skip if size is as requested, or included in a given range
-		if *size_min > -1 {
-			if size == *size_min {
-				return nil
-			}
-			if size >= *size_min && size <= *size_max {
-				return nil
-			}
+		if skip_sizes[size] {
+			return nil
+		}
+
+		if size >= *size_min && size <= *size_max {
+			return nil
 		}
 
 		return Result{url, resp.StatusCode, size, resp.Header.Get("location"), nil}
@@ -185,26 +232,24 @@ func OnResult(res interface{}) {
 		return
 	}
 
-	now := time.Now().Format("15:04:05")
-
 	switch {
-	case result.status == 404:
+	case result.status == http.StatusNotFound:
 		return
 
 	case result.err != nil:
-		r.Fprintf(os.Stderr, "[%s] %s : %v\n", now, result.url, result.err)
+		r.Fprintf(os.Stderr, "%s : %v\n", result.url, result.err)
 
 	case result.status >= 200 && result.status < 300:
-		g.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
+		g.Printf("%-3d %-9d %s\n", result.status, result.size, result.url)
 
 	case result.status >= 300 && result.status < 400:
-		b.Printf("[%s] %-3d %-9d %s -> %s\n", now, result.status, result.size, result.url, result.location)
+		b.Printf("%-3d %-9d %s -> %s\n", result.status, result.size, result.url, result.location)
 
 	case result.status >= 400 && result.status < 500:
-		y.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
+		y.Printf("%-3d %-9d %s\n", result.status, result.size, result.url)
 
 	case result.status >= 500 && result.status < 600:
-		r.Printf("[%s] %-3d %-9d %s\n", now, result.status, result.size, result.url)
+		r.Printf("%-3d %-9d %s\n", result.status, result.size, result.url)
 	}
 
 	if errors > *maxerrors {
@@ -217,15 +262,22 @@ func main() {
 	setup()
 
 	// create a list of exclusions
-	if *exclude != "" {
-		for _, x := range strings.Split(*exclude, ",") {
+	if *skip_code != "" {
+		for _, x := range strings.Split(*skip_code, ",") {
 			y, _ := strconv.Atoi(x)
-			fail_codes[y] = true
+			skip_codes[y] = true
 		}
+		fmt.Fprintf(os.Stderr, "Excluding code: %s\n", *skip_code)
 	}
 
-	// set timeout
-	client.Timeout = time.Duration(*timeout) * time.Second
+	// exclude sizes
+	if *skip_size != "" {
+		for _, x := range strings.Split(*skip_size, ",") {
+			y, _ := strconv.ParseInt(x, 10, 64)
+			skip_sizes[y] = true
+		}
+		fmt.Fprintf(os.Stderr, "Excluding size: %s\n", *skip_size)
+	}
 
 	// set redirects policy
 	if !*follow {
@@ -234,12 +286,28 @@ func main() {
 		}
 	}
 
+	// check if alive or fuck off
+	if IsAlive(*base) == false {
+		r.Fprintf(os.Stderr, "\n%s is down, exiting...\n", *base)
+		os.Exit(0)
+	}
+
 	// check for wildcard responses, and return if true
 	if *wildcard == true {
 		if IsWildcard(*base) == true {
 			r.Fprintf(os.Stderr, "\nWildcard detected on %s, skipping...\n", *base)
 			os.Exit(0)
 		}
+	}
+
+	// calibrate the 404 detection engine
+	x, y, err := Check404(*base)
+	if err == nil {
+		fmt.Fprintf(os.Stderr, "Heuristic skip: %d/%d bytes\n\n", x, y)
+		if x != http.StatusNotFound {
+			skip_codes[x] = true
+		}
+		skip_sizes[y] = true
 	}
 
 	// start
@@ -276,7 +344,7 @@ func setup() {
 	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-signals
-		r.Fprintln(os.Stderr, "\nINTERRUPTING ...")
+		r.Fprintln(os.Stderr, "\nINTERRUPTING...")
 		printStats()
 		os.Exit(0)
 	}()
@@ -286,9 +354,9 @@ func setup() {
 func printStats() {
 	m.UpdateStats()
 
-	fmt.Fprintln(os.Stderr, "Requests :", m.Stats.Execs)
-	fmt.Fprintln(os.Stderr, "Errors   :", errors)
-	fmt.Fprintln(os.Stderr, "Results  :", m.Stats.Results)
-	fmt.Fprintln(os.Stderr, "Time     :", m.Stats.Total.Seconds(), "s")
-	fmt.Fprintln(os.Stderr, "Req/s    :", m.Stats.Eps)
+	fmt.Fprintln(os.Stderr, "Requests:", m.Stats.Execs)
+	fmt.Fprintln(os.Stderr, "Errors  :", errors)
+	fmt.Fprintln(os.Stderr, "Results :", m.Stats.Results)
+	fmt.Fprintln(os.Stderr, "Time    :", m.Stats.Total.Seconds(), "s")
+	fmt.Fprintln(os.Stderr, "Req/s   :", m.Stats.Eps)
 }
