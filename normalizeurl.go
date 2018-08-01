@@ -2,7 +2,6 @@ package dirsearch
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 )
 
@@ -19,7 +18,7 @@ func NormalizeURL(base *string) (err error) {
 	}
 
 	// add path
-	if m, _ := regexp.Match("^[a-z]+://[^/]+/.*$", []byte(*base)); m == false {
+	if !strings.HasSuffix(*base, "/") {
 		*base += "/"
 	}
 

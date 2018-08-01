@@ -1,5 +1,0 @@
-package: github.com/evilsocket/dirsearch
-import:
-- package: github.com/fatih/color
-  version: ^1.4.1
-- package: github.com/evilsocket/brutemachine
